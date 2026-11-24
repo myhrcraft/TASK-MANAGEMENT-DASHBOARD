@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>HR Task Tracker &amp; Dashboard</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header><h1>TASK MANAGEMENT DASHBOARD &nbsp;|&nbsp; HR &amp; Admin</h1><div class="sub" id="hdrsub"></div><span class="sp"></span><span id="sync" class="sync noprint" role="status" hidden></span><button class="btn noprint" id="hdrNew" title="New task (Alt+N)">+ New Task</button></header>
+<nav id="nav">
+<a href="#dashboard" data-t="dashboard" style="--c:#C00000">Dashboard</a>
+<a href="#tracker" data-t="tracker" style="--c:#2E75B6">Task Tracker</a>
+<a href="#summary" data-t="summary" style="--c:#548235">Summary</a>
+<a href="#calculation" data-t="calculation" style="--c:#7F7F7F">Calculation</a>
+<a href="#lists" data-t="lists" style="--c:#BF8F00">Lists</a>
+<a href="#guide" data-t="guide" style="--c:#1F3864">Guide</a>
+</nav>
+<main>
+<div id="loadMsg" class="empty">Loading…</div>
+<!-- DASHBOARD -->
+<section id="s-dashboard">
+<div class="filters">
+<label>Priority ▸ <select id="fPri"></select></label>
+<label>Assigned By ▸ <select id="fBy"></select></label>
+<label>Team Member ▸ <select id="fMem"></select></label>
+<label>Job Function ▸ <select id="fFn"></select></label>
+<button class="btn noprint" id="fReset">Reset to All</button>
+<button class="btn noprint" data-print="dashboard">Print</button>
+<span class="note" style="margin:0">Pick from the yellow dropdowns. Summary follows the same filters.</span>
+</div>
+<div class="kpis" id="kpis"></div>
+<div class="charts">
+<div class="card"><h3>Task Status Distribution</h3><div id="chPie"></div></div>
+<div class="card"><h3>Priority-wise Tasks (Open vs Completed)</h3><div id="chPri"></div></div>
+<div class="card"><h3>Monthly Trend – Assigned vs Completed (last 12 months)</h3><div id="chLine"></div></div>
+<div class="card"><h3>Team Member Workload</h3><div id="chTeam"></div></div>
+<div class="card" style="grid-column:1/-1"><h3>Job Function-wise Tasks (Assigned / Completed / Overdue)</h3><div id="chFn"></div></div>
+</div>
+<div class="sec" style="background:#C00000">TOP 5 OVERDUE TASKS (most days late first)</div>
+<div id="top5"></div>
+</section>
+
+<!-- TRACKER -->
+<section id="s-tracker">
+<h2>Task Tracker</h2>
+<p class="note">Click <b>+ New Task</b> to enter a task in the form. Click any row to open and edit it. ✓ marks a task complete. Everything saves automatically and updates the Dashboard, Summary and Calculation.</p>
+<div class="bar tbar">
+<button class="btn pri" id="addRow">+ New Task <span class="kbd" style="color:#cfd8e6;border-color:#6d7fa3">Alt+N</span></button>
+<input id="search" placeholder="Search task, person, remarks…" style="padding:7px 10px;border:1px solid var(--line);border-radius:4px;min-width:230px">
+<select id="lfPri"><option value="">All priorities</option><option>Urgent</option><option>High</option><option>Medium</option><option>Low</option></select>
+<select id="lfMem"></select>
+<select id="lfFn"></select>
+<span style="flex:1"></span>
+<div class="seg" id="viewSeg"><button data-v="list" class="on">List View</button><button data-v="sheet">Sheet View</button></div>
+<button class="btn" id="expCsv">Export CSV</button>
+<label class="btn">Import CSV<input type="file" id="impCsv" accept=".csv,text/csv" hidden></label>
+<button class="btn" id="expJson">Backup</button>
+<label class="btn">Restore<input type="file" id="impJson" accept=".json,application/json" hidden></label>
+</div>
+<div class="counts" id="counts"></div>
+<div id="listView"><div class="wrap"><table class="list" id="lt"><thead></thead><tbody></tbody></table></div><div class="pager" id="pager"></div></div>
+<div id="sheetView" style="display:none">
+<p class="note" style="margin:0 0 8px">Sheet View: fast bulk editing, like Excel. Type straight into the cells.</p>
+<div class="wrap"><table class="tt" id="tt"><thead><tr>
+<th style="width:42px">SL.</th><th style="width:300px">Task</th><th style="width:135px">Assigned Date</th><th style="width:170px">Assigned By</th><th style="width:170px">Job Function</th><th style="width:135px">Tentative Date to Complete</th><th style="width:80px">Remaining Days</th><th style="width:135px">Completion Date</th><th style="width:150px">Assigned To 1</th><th style="width:150px">Assigned To 2</th><th style="width:150px">Assigned To 3</th><th style="width:105px">Priority Setting</th><th style="width:90px">Completion Percentage</th><th style="width:190px">Remarks</th><th class="noprint" style="width:34px"></th>
+</tr></thead><tbody></tbody></table></div>
+</div>
+<datalist id="dlMem"></datalist><datalist id="dlBy"></datalist><datalist id="dlFn"></datalist>
+</section>
+
+<!-- SUMMARY -->
+<section id="s-summary">
+<div class="bar"><h2 style="margin:0">Executive Summary – Task Status</h2><span style="flex:1"></span><button class="btn" data-print="summary">Print</button></div>
+<p class="note" id="sumNote"></p>
+<div id="sumBody"></div>
+</section>
+
+<!-- CALCULATION -->
+<section id="s-calculation">
+<h2>Calculation Engine</h2>
+<p class="note">Read-only. Left: row-by-row helpers for every task. Right/below: settings and summary tables that feed the Summary and Dashboard.</p>
+<div id="calcBody"></div>
+</section>
+
+<!-- LISTS -->
+<section id="s-lists">
+<h2>Lists (Master Data) &amp; Settings</h2>
+<p class="note">Edit names here; they fill the dropdowns in Assigned By / Assigned To 1-2-3 / Job Function and drive the charts. Click <b>+ Add</b> to add as many entries as you need; ✕ removes one (existing tasks keep their value). Changes apply for everyone.</p>
+<div class="grid2 lists">
+<div>
+<div class="card"><h3>Team Members <span id="nMem" style="color:#8c8c8c;font-weight:400"></span></h3><div id="lMem"></div><button class="btn ladd" data-add="members">+ Add Team Member</button></div>
+<div class="card" style="margin-top:14px"><h3>Job Functions <span id="nFn" style="color:#8c8c8c;font-weight:400"></span></h3><div id="lFn"></div><button class="btn ladd" data-add="functions">+ Add Job Function</button></div>
+</div>
+<div>
+<div class="card"><h3>Assigned By <span id="nBy" style="color:#8c8c8c;font-weight:400"></span></h3><div id="lBy"></div><button class="btn ladd" data-add="assigners">+ Add Assigned By</button></div>
+<div class="card" style="margin-top:14px"><h3>Priority</h3><div>Urgent · High · Medium · Low (fixed)</div></div>
+<div class="card" style="margin-top:14px"><h3>Report Date</h3>
+<p class="note">Leave blank to use today's date. Set a fixed date to freeze a month-end report.</p>
+<input type="date" id="repDate" style="max-width:200px"> <button class="btn" id="repClear">Use Today</button></div>
+<div class="card" style="margin-top:14px"><h3>Data</h3>
+<div class="bar" style="margin:0"><button class="btn" id="loadSample">Load Sample Data</button><button class="btn danger" id="clearAll">Clear All Tasks</button></div>
+<p class="note" id="clearMsg" style="margin:8px 0 0"></p></div>
+</div></div>
+</section>
+
+<!-- GUIDE -->
+<section id="s-guide">
+<h2>How to Use This Tracker</h2>
+<table class="guide" style="max-width:1000px;margin-top:10px"><tbody>
+<tr><td>STEP 1</td><td>Update team members, Assigned-By names and Job Functions in the <b>Lists</b> tab. Use <b>+ Add</b> to add more entries to any list.</td></tr>
+<tr><td>STEP 2</td><td>Click <b>+ New Task</b> (top-right, or Alt+N) and fill in the form. Click any row in <b>Task Tracker</b> to edit it; ✓ marks it complete; 🗑 deletes it. Use <b>Sheet View</b> for Excel-style bulk editing. The 24 sample rows are illustrative. Clear them from the Lists tab, or overwrite them.</td></tr>
+<tr><td>STEP 3</td><td>Open <b>Dashboard</b> and use the yellow dropdowns (Priority / Assigned By / Team Member / Job Function) to filter. <b>Summary</b> follows the same filters.</td></tr>
+<tr><td>SAVING</td><td>Data saves online and is shared by everyone who has the link. Other people’s changes appear within about a minute. Take a <b>Backup</b> (JSON) regularly; <b>Restore</b> also accepts a backup from the old offline file. <b>Export CSV</b> opens in Excel.</td></tr>
+<tr class="h"><td>COLOUR LEGEND</td><td></td></tr>
+<tr><td style="color:#0000FF">Blue text</td><td>Input cells. Type here.</td></tr>
+<tr><td style="background:#F2F2F2">Grey cells</td><td>Calculated. SL. and Remaining Days.</td></tr>
+<tr><td style="background:#FFF2CC">Yellow</td><td>Dashboard filter dropdowns.</td></tr>
+<tr class="h"><td>BUSINESS RULES</td><td></td></tr>
+<tr><td>Due Date</td><td>Same as Tentative Date to Complete.</td></tr>
+<tr><td>Remaining Days</td><td>Tentative Date to Complete − Report Date. Negative (red) = days overdue; 0–3 amber; “Done” when completed.</td></tr>
+<tr><td>Completed</td><td>A task is Completed when a Completion Date is entered OR Completion Percentage = 100%.</td></tr>
+<tr><td>Overdue</td><td>Not completed and the Report Date is past the Due Date.</td></tr>
+<tr><td>Not Started / In Progress</td><td>Not overdue and Completion % = 0 → Not Started; otherwise In Progress.</td></tr>
+<tr><td>On-Time Delivery</td><td>Completed tasks whose Completion Date ≤ Due Date, divided by completed tasks that have a Completion Date.</td></tr>
+<tr><td>Job Function</td><td>Type of work the task belongs to (e.g. HR Analytics, Recruitment). Drives the Job Function chart and summary table.</td></tr>
+<tr><td>Team workload</td><td>A task counts once for each person named in Assigned To 1, 2 or 3.</td></tr>
+<tr><td>Trend chart</td><td>Rolling 12 months ending in the Report Date month.</td></tr>
+</tbody></table>
+</section>
+</main>
+<div class="drawer" id="drawer"><div class="dpanel" role="dialog" aria-modal="true" aria-labelledby="fTitle">
+<div class="dhead"><h3 id="fTitle">New Task</h3><span id="fStatus"></span><button class="x" id="fX" title="Close (Esc)">×</button></div>
+<form class="dbody" id="tform" novalidate autocomplete="off">
+<div class="fgrid">
+<div class="fg full" data-for="task"><label>Task <span class="rq">*</span></label><textarea id="f_task" rows="2" maxlength="300" placeholder="Describe the task…"></textarea><div class="err"></div></div>
+<div class="fg" data-for="ad"><label>Assigned Date <span class="rq">*</span></label><input type="date" id="f_ad"><div class="err"></div></div>
+<div class="fg" data-for="by"><label>Assigned By <span class="rq">*</span></label><select id="f_by"></select><div class="err"></div></div>
+<div class="fg" data-for="due"><label>Tentative Date to Complete <span class="rq">*</span></label><input type="date" id="f_due"><div class="qp" id="qpDue"><button type="button" data-d="3">+3 days</button><button type="button" data-d="7">+7</button><button type="button" data-d="15">+15</button><button type="button" data-d="30">+30</button></div><div class="err"></div></div>
+<div class="fg"><label>Remaining Days</label><div class="ro" id="f_rem">–</div><div class="hint">Calculated automatically</div></div>
+<div class="fg" data-for="a1"><label>Assigned To 1 <span class="rq">*</span></label><select id="f_a1"></select><div class="err"></div></div>
+<div class="fg" data-for="a2"><label>Assigned To 2</label><select id="f_a2"></select><div class="err"></div></div>
+<div class="fg" data-for="a3"><label>Assigned To 3</label><select id="f_a3"></select><div class="err"></div></div>
+<div class="fg" data-for="fn"><label>Job Function</label><select id="f_fn"></select><div class="hint">Options come from the Lists tab.</div><div class="err"></div></div>
+<div class="fg full" data-for="pr"><label>Priority Setting <span class="rq">*</span></label><div class="prio" id="f_pr"><button type="button" class="Urgent">Urgent</button><button type="button" class="High">High</button><button type="button" class="Medium">Medium</button><button type="button" class="Low">Low</button></div><div class="err"></div></div>
+<div class="fg" data-for="pct"><label>Completion Percentage</label><div class="pctrow"><input type="range" id="f_pctR" min="0" max="100" step="5"><input type="number" id="f_pct" min="0" max="100"></div><div class="qp" id="qpPct"><button type="button" data-p="0">0%</button><button type="button" data-p="25">25%</button><button type="button" data-p="50">50%</button><button type="button" data-p="75">75%</button><button type="button" data-p="100">100%</button></div><div class="err"></div></div>
+<div class="fg" data-for="cd"><label>Completion Date</label><input type="date" id="f_cd"><div class="hint" id="cdHint">Entering a date marks the task Completed (100%).</div><div class="err"></div></div>
+<div class="fg full"><label>Remarks</label><textarea id="f_rem2" rows="2" maxlength="300" placeholder="Optional notes…"></textarea></div>
+</div>
+<button type="submit" hidden></button>
+</form>
+<div class="dfoot"><div class="meta" id="fMeta"></div>
+<button class="btn danger" id="fDel" type="button">Delete</button>
+<button class="btn" id="fCancel" type="button">Cancel</button>
+<button class="btn" id="fSaveNew" type="button">Save &amp; New</button>
+<button class="btn pri" id="fSave" type="button">Save <span class="kbd" style="color:#cfd8e6;border-color:#6d7fa3">Ctrl+Enter</span></button></div>
+</div></div>
+<div class="confirm" id="confirm"><div class="box"><h3 id="cTitle" style="margin:0 0 8px;font-size:15px"></h3><p id="cMsg" style="margin:0 0 14px;color:#595959"></p><div class="bar" style="margin:0;justify-content:flex-end"><button class="btn" id="cNo">Cancel</button><button class="btn pri" id="cYes" style="background:#C00000;border-color:#C00000">Delete</button></div></div></div>
+<div id="tip"></div>
+<div id="toast"><span id="toastMsg"></span><button id="toastBtn">Undo</button></div>
+<div class="modal" id="modal"><div class="box"><h3 id="mTitle" style="margin:0 0 6px"></h3><p class="note" id="mNote"></p><textarea id="mText" readonly></textarea><div class="bar" style="margin:10px 0 0;justify-content:flex-end"><button class="btn pri" id="mCopy">Copy</button><button class="btn" id="mClose">Close</button></div></div></div>
+
+<script src="vendor/supabase.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

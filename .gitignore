@@ -1,0 +1,7 @@
+node_modules/
+.vercel/
+.env*
+!.env.example
+# data exported from the app must not go to GitHub
+*Backup*.json
+*.csv
