@@ -19,6 +19,7 @@ async function handle(request) {
   const url = new URL(request.url);
   const path = url.pathname.startsWith("/rest/v1/") ? url.pathname.slice(9) : url.searchParams.get("__path") || "";
   url.searchParams.delete("__path");
+  url.searchParams.delete("path");   // Vercel's rewrite adds this one by itself; Supabase would read it as a filter
   if (!Object.hasOwn(ALLOWED, path) || !ALLOWED[path].includes(request.method)) return fail(404, "Not found");
 
   // only this site's own pages may call this
