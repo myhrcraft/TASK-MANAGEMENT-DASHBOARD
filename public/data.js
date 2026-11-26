@@ -64,6 +64,20 @@ async function dbPatch(id, patch) {
   return fromRow(d[0]);
 }
 async function dbDelete(id) { chk(await sb.from("tasks").delete().eq("id", id).select("id")); }
+// bulk upload: all rows go in one request, so either every task is added or none is
+async function dbInsertMany(list) { return chk(await sb.from("tasks").insert(list.map(toRow)).select()).map(fromRow); }
+async function dbDeleteMany(table, ids) {
+  for (let i = 0; i < ids.length; i += 100) chk(await sb.from(table).delete().in("id", ids.slice(i, i + 100)).select("id"));
+}
+async function dbListAddMany(rows) {
+  if (!rows.length) return [];
+  try { return chk(await sb.from("list_items").insert(rows).select()); }
+  catch (e) { if (e?.code !== "23505") throw e; }
+  // someone added one of these names meanwhile: add the others one by one
+  const out = [];
+  for (const r of rows) { try { out.push(await dbListAdd(r)); } catch (e) { if (e?.code !== "23505") throw e; } }
+  return out;
+}
 async function dbReplace(p) { chk(await sb.rpc("replace_all", { p })); }
 async function dbListAdd(row) { return chk(await sb.from("list_items").insert(row).select().single()); }
 async function dbListRename(id, name) {

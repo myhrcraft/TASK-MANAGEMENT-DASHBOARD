@@ -90,7 +90,7 @@ function hideTip(){tip.style.display="none"}
 function bindTips(el){el.querySelectorAll("[data-tip]").forEach(n=>{n.addEventListener("mousemove",e=>showTip(e,n.getAttribute("data-tip")));n.addEventListener("mouseleave",hideTip)})}
 const row=(c,l,v)=>`<div class="r"><span><i style="background:${c}"></i>${l}</span><b style="margin:0">${v}</b></div>`;
 
-// ---------- charts ----------
+// ---------- charts -------------------
 function pie(){
   const el=document.getElementById("chPie"),data=C.status,tot=data.reduce((a,d)=>a+d.n,0);
   if(!tot){el.innerHTML='<div class="empty">No tasks in this view</div>';return}
@@ -219,12 +219,15 @@ document.getElementById("search").oninput=()=>{page=0;renderTracker()};
 const HEAD=["SL.","Task","Assigned Date","Assigned By","Job Function","Tentative Date to Complete","Remaining Days","Completion Date","Assigned To 1","Assigned To 2","Assigned To 3","Priority Setting","Completion Percentage","Remarks"];
 const csvq=v=>{v=String(v??"");if(/^[=+\-@\t\r]/.test(v)&&!/^-?\d+%?$/.test(v))v="'"+v;return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
 function toCSV(){return "﻿"+[HEAD,...S.tasks.map((t,i)=>{const r=C.rows[i];return [r.valid?i+1:"",t.task,t.ad,t.by,t.fn,t.due,r.remain,t.cd,t.a1,t.a2,t.a3,t.pr,(+t.pct||0)+"%",t.rem]})].map(a=>a.map(csvq).join(",")).join("\r\n")}
-function parseCSV(s){s=s.replace(/^﻿/,"");const out=[];let row=[],cur="",q=false;
+function parseCSV(s,d=","){s=s.replace(/^﻿/,"");const out=[];let row=[],cur="",q=false;
   for(let i=0;i<s.length;i++){const c=s[i];if(q){if(c==='"'){if(s[i+1]==='"'){cur+='"';i++}else q=false}else cur+=c}
-   else if(c==='"')q=true;else if(c===","){row.push(cur);cur=""}else if(c==="\n"||c==="\r"){if(c==="\r"&&s[i+1]==="\n")i++;row.push(cur);out.push(row);row=[];cur=""}else cur+=c}
+   else if(c==='"')q=true;else if(c===d){row.push(cur);cur=""}else if(c==="\n"||c==="\r"){if(c==="\r"&&s[i+1]==="\n")i++;row.push(cur);out.push(row);row=[];cur=""}else cur+=c}
   if(cur!==""||row.length){row.push(cur);out.push(row)}return out}
-function normDate(v){v=(v||"").trim();if(!v)return"";if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v;
-  let m=/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/.exec(v);if(m){let y=+m[3];if(y<100)y+=2000;return y+"-"+String(m[2]).padStart(2,"0")+"-"+String(m[1]).padStart(2,"0")}
+// order: "dmy" (default) or "mdy", for dates like 05/11/2026
+function normDate(v,order){v=(v||"").trim();if(!v)return"";if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v;
+  if(/^\d{5}(\.\d+)?$/.test(v)){const n=Math.floor(+v);if(n>20000&&n<80000)return new Date(Date.UTC(1899,11,30)+n*MS).toISOString().slice(0,10)} // Excel date number
+  let m=/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/.exec(v);if(m){let y=+m[3];if(y<100)y+=2000;const [d,mo]=order==="mdy"?[+m[2],+m[1]]:[+m[1],+m[2]];
+    if(mo<1||mo>12||d<1||d>31)return"";return y+"-"+String(mo).padStart(2,"0")+"-"+String(d).padStart(2,"0")}
   m=/^(\d{1,2})[\s\-]([A-Za-z]{3})[a-z]*[\s\-](\d{2,4})$/.exec(v);if(m){let y=+m[3];if(y<100)y+=2000;const mi=MON.findIndex(x=>x.toLowerCase()===m[2].toLowerCase());if(mi>=0)return y+"-"+String(mi+1).padStart(2,"0")+"-"+String(m[1]).padStart(2,"0")}
   const d=new Date(v);return isNaN(d)?"":d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 function download(name,text,type){
@@ -237,15 +240,50 @@ mClose.onclick=()=>modal.style.display="none";
 mCopy.onclick=async()=>{try{await navigator.clipboard.writeText(mText.value);mCopy.textContent="Copied ✓"}catch(e){mText.select();mCopy.textContent="Press Ctrl+C"}setTimeout(()=>mCopy.textContent="Copy",1800)};
 expCsv.onclick=()=>download("HR_Task_Tracker_"+todayStr()+".csv",toCSV(),"text/csv");
 expJson.onclick=()=>download("HR_Task_Tracker_Backup_"+todayStr()+".json",JSON.stringify(S,null,1),"application/json");
-impCsv.onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(s=>{const rows=parseCSV(s).filter(r=>r.some(x=>x.trim()!==""));
-  const h=rows.shift().map(x=>x.trim().toLowerCase());const col=n=>h.findIndex(x=>x===n.toLowerCase());
-  const ix={task:col("Task"),ad:col("Assigned Date"),by:col("Assigned By"),fn:col("Job Function"),due:col("Tentative Date to Complete"),cd:col("Completion Date"),a1:col("Assigned To 1"),a2:col("Assigned To 2"),a3:col("Assigned To 3"),pr:col("Priority Setting"),pct:col("Completion Percentage"),rem:col("Remarks")};
-  if(ix.task<0){toast("CSV must have the tracker headers (e.g. 'Task').");return}
-  const g=(r,k)=>ix[k]>=0?(r[ix[k]]||"").trim().replace(/^'(?=[=+\-@])/,""):"";
-  const tasks=cleanTasks(rows.map(r=>{let p=g(r,"pct").replace("%","");p=p===""?0:+p;if(p>0&&p<=1&&g(r,"pct").indexOf("%")<0)p=p*100;
-    const prRaw=g(r,"pr").toLowerCase()==="critical"?"urgent":g(r,"pr").toLowerCase();const pr=PRIOS.find(x=>x.toLowerCase()===prRaw)||"";
-    return {task:g(r,"task"),ad:normDate(g(r,"ad")),by:g(r,"by"),fn:g(r,"fn"),due:normDate(g(r,"due")),cd:normDate(g(r,"cd")),a1:g(r,"a1"),a2:g(r,"a2"),a3:g(r,"a3"),pr,pct:Math.round(Math.max(0,Math.min(100,p||0))),rem:g(r,"rem")}}));
-  askConfirm("Import CSV?",`All ${S.tasks.length} current tasks will be replaced for everyone by ${tasks.length} tasks from this file.`,"Replace",()=>replaceAll({tasks},`Imported ${tasks.length} tasks (replaced existing).`))});e.target.value=""};
+// Headings the CSV reader understands: this app's own export, and the Excel "Task Tracker" sheet.
+const CSV_COLS={task:["Task","Task Name"],ad:["Assigned Date","Started Date","Start Date"],by:["Assigned By"],fn:["Job Function","Type of Job/Function","Function"],
+  due:["Tentative Date to Complete","Tentative Date to be Completed","Due Date"],cd:["Completion Date","Completed Date"],
+  a1:["Assigned To 1"],a2:["Assigned To 2"],a3:["Assigned To 3"],pr:["Priority Setting","Priority"],pct:["Completion Percentage","Completion %"],rem:["Remarks","Any Remarks"]};
+const hnorm=s=>String(s).trim().toLowerCase().replace(/\s+/g," ");
+// day/month order of the file's dates; when every date fits both, Excel used this computer's setting
+function dateOrder(vals){let dmy=0,mdy=0;
+  for(const v of vals){const m=/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.]\d{2,4}$/.exec(v);if(!m)continue;if(+m[1]>12)dmy++;else if(+m[2]>12)mdy++}
+  if(dmy||mdy)return dmy>=mdy?"dmy":"mdy";
+  try{const p=new Intl.DateTimeFormat().formatToParts(new Date(2026,0,15));return p.findIndex(x=>x.type==="month")<p.findIndex(x=>x.type==="day")?"mdy":"dmy"}catch(e){return"dmy"}}
+// CSV text → tasks, or null when no heading row is found. Title rows above the headings are skipped.
+function csvTasks(s){s=s.replace(/^﻿/,"");
+  for(const d of [",",";","\t"]){
+    const rows=parseCSV(s,d).filter(r=>r.some(x=>x.trim()!==""));
+    const hi=rows.slice(0,15).findIndex(r=>r.some(x=>CSV_COLS.task.some(n=>hnorm(n)===hnorm(x))));if(hi<0)continue;
+    const h=rows[hi].map(hnorm),ix={};for(const k in CSV_COLS)ix[k]=h.findIndex(x=>CSV_COLS[k].some(n=>hnorm(n)===x));
+    const body=rows.slice(hi+1),g=(r,k)=>ix[k]>=0?(r[ix[k]]||"").trim().replace(/^'(?=[=+\-@])/,""):"";
+    const order=dateOrder(body.flatMap(r=>[g(r,"ad"),g(r,"due"),g(r,"cd")]));
+    return cleanTasks(body.map(r=>{let p=g(r,"pct").replace("%","");p=p===""?0:+p;if(p>0&&p<=1&&g(r,"pct").indexOf("%")<0)p=p*100;
+      const prRaw=g(r,"pr").toLowerCase()==="critical"?"urgent":g(r,"pr").toLowerCase();const pr=PRIOS.find(x=>x.toLowerCase()===prRaw)||"";
+      return {task:g(r,"task"),ad:normDate(g(r,"ad"),order),by:g(r,"by"),fn:g(r,"fn"),due:normDate(g(r,"due"),order),cd:normDate(g(r,"cd"),order),a1:g(r,"a1"),a2:g(r,"a2"),a3:g(r,"a3"),pr,pct:Math.round(Math.max(0,Math.min(100,p||0))),rem:g(r,"rem")}}))}
+  return null}
+// names in the tasks that the Lists don't have yet, kept exactly as spelled in the file
+function newNames(tasks){const out={members:[],assigners:[],functions:[]};
+  const add=(k,v)=>{if(!v)return;const l=v.toLowerCase();if(S[k].some(x=>x.toLowerCase()===l)||out[k].some(x=>x.toLowerCase()===l))return;out[k].push(v)};
+  tasks.forEach(t=>{add("members",t.a1);add("members",t.a2);add("members",t.a3);add("assigners",t.by);add("functions",t.fn)});return out}
+const namesNote=nn=>{const n=nn.members.length+nn.assigners.length+nn.functions.length;return n?` ${n} new name${n===1?"":"s"} from the file will be added to the Lists.`:""};
+function readCsvFile(e,then){const f=e.target.files[0];e.target.value="";if(!f)return;
+  f.text().then(s=>{const tasks=csvTasks(s);
+    if(!tasks){toast("This CSV has no tracker headings (e.g. 'Task' or 'Task Name').");return}
+    if(!tasks.length){toast("No tasks found in this file.");return}
+    then(tasks,newNames(tasks),f.name)})}
+impCsv.onchange=e=>readCsvFile(e,(tasks,nn)=>{const p={tasks};for(const k in nn)if(nn[k].length)p[k]=[...S[k],...nn[k]];
+  askConfirm("Import CSV?",`All ${S.tasks.length} current tasks will be replaced for everyone by ${tasks.length} tasks from this file.${namesNote(nn)}`,"Replace",()=>replaceAll(p,`Imported ${tasks.length} tasks (replaced existing).`))});
+// Upload CSV (New Task form): adds the file's tasks to the ones already there
+fCsv.onchange=e=>readCsvFile(e,(tasks,nn,name)=>askConfirm("Upload tasks from CSV?",`${tasks.length} task${tasks.length===1?"":"s"} from “${name}” will be added for everyone. Existing tasks stay as they are.${namesNote(nn)}`,"Upload",()=>uploadTasks(tasks,nn)));
+async function uploadTasks(tasks,nn){
+  const rows=Object.entries(nn).flatMap(([kind,a])=>a.map(name=>({kind,name})));let listFail=false;
+  const r=await run(async()=>{const a=await dbInsertMany(tasks);let l=[];try{l=await dbListAddMany(rows)}catch(e){console.error(e);listFail=true}return {a,l}});
+  if(!r.ok)return;
+  closeForm();if(location.hash!=="#tracker")location.hash="#tracker";await refresh(true);
+  const ids=r.v.a.map(t=>t.id),lids=r.v.l.map(x=>x.id);
+  undo=()=>run(async()=>{await dbDeleteMany("tasks",ids);if(lids.length)await dbDeleteMany("list_items",lids)});
+  toast(`${ids.length} task${ids.length===1?"":"s"} added from the file.`+(lids.length?` ${lids.length} new name${lids.length===1?"":"s"} added to Lists.`:"")+(listFail?" Some names could not be added to Lists.":""),true)}
 async function replaceAll(p,msg){const old={};for(const k in p)old[k]=k==="reportDate"?S[k]:JSON.parse(JSON.stringify(S[k]));
   const r=await run(()=>dbReplace(p));if(!r.ok)return;
   await refresh(true);undo=()=>run(()=>dbReplace(old));toast(msg,true)}
@@ -314,7 +352,7 @@ function openForm(id){
   f_task.value=t.task;f_ad.value=t.ad;f_due.value=t.due;f_cd.value=t.cd;f_rem2.value=t.rem;
   opts(f_by,S.assigners,t.by,"— Select —");opts(f_fn,S.functions,t.fn,"— Select —");opts(f_a1,S.members,t.a1,"— Select —");opts(f_a2,S.members,t.a2,"— None —");opts(f_a3,S.members,t.a3,"— None —");
   setPr(t.pr||"Medium");f_pct.value=+t.pct||0;f_pctR.value=+t.pct||0;
-  fDel.style.display=isEdit?"":"none";fSaveNew.style.display=isEdit?"none":"";
+  fDel.style.display=isEdit?"":"none";fSaveNew.style.display=isEdit?"none":"";fUp.style.display=isEdit?"none":"";
   fMeta.textContent=isEdit?[t.created?"Created "+new Date(t.created).toLocaleString():"",t.updated?"Updated "+new Date(t.updated).toLocaleString():""].filter(Boolean).join("  •  "):"Fields marked * are required";
   document.querySelectorAll("#tform .fg").forEach(g=>{g.classList.remove("bad");const e=g.querySelector(".err");if(e)e.textContent=""});
   live();drawer.classList.add("open");f_task.focus();
