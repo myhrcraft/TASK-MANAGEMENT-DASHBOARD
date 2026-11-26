@@ -55,7 +55,7 @@
 <span style="flex:1"></span>
 <div class="seg" id="viewSeg"><button data-v="list" class="on">List View</button><button data-v="sheet">Sheet View</button></div>
 <button class="btn" id="expCsv">Export CSV</button>
-<label class="btn">Import CSV<input type="file" id="impCsv" accept=".csv,text/csv" hidden></label>
+<label class="btn">Import CSV/Excel<input type="file" id="impCsv" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label>
 <button class="btn" id="expJson">Backup</button>
 <label class="btn">Restore<input type="file" id="impJson" accept=".json,application/json" hidden></label>
 </div>
@@ -110,7 +110,7 @@
 <h2>How to Use This Tracker</h2>
 <table class="guide" style="max-width:1000px;margin-top:10px"><tbody>
 <tr><td>STEP 1</td><td>Update team members, Assigned-By names and Job Functions in the <b>Lists</b> tab. Use <b>+ Add</b> to add more entries to any list.</td></tr>
-<tr><td>STEP 2</td><td>Click <b>+ New Task</b> (top-right, or Alt+N) and fill in the form. Click any row in <b>Task Tracker</b> to edit it; ✓ marks it complete; 🗑 deletes it. Use <b>Sheet View</b> for Excel-style bulk editing. To add many tasks at once, open <b>+ New Task</b> and click <b>Upload CSV</b>: save the Excel Task Tracker sheet as CSV and pick it. The tasks are added to the existing ones, and new names in the file are added to the Lists exactly as written. The 24 sample rows are illustrative. Clear them from the Lists tab, or overwrite them.</td></tr>
+<tr><td>STEP 2</td><td>Click <b>+ New Task</b> (top-right, or Alt+N) and fill in the form. Click any row in <b>Task Tracker</b> to edit it; ✓ marks it complete; 🗑 deletes it. Use <b>Sheet View</b> for Excel-style bulk editing. To add many tasks at once, open <b>+ New Task</b> and click <b>Upload CSV/Excel</b> and pick the Excel tracker (.xlsx) or a CSV of it. The tasks are added to the existing ones, and new names in the file are added to the Lists exactly as written. The 24 sample rows are illustrative. Clear them from the Lists tab, or overwrite them.</td></tr>
 <tr><td>STEP 3</td><td>Open <b>Dashboard</b> and use the yellow dropdowns (Priority / Assigned By / Team Member / Job Function) to filter. <b>Summary</b> follows the same filters.</td></tr>
 <tr><td>SAVING</td><td>Data saves online and is shared by everyone who has the link. Other people’s changes appear within about a minute. Take a <b>Backup</b> (JSON) regularly; <b>Restore</b> also accepts a backup from the old offline file. <b>Export CSV</b> opens in Excel.</td></tr>
 <tr class="h"><td>COLOUR LEGEND</td><td></td></tr>
@@ -152,7 +152,7 @@
 </form>
 <div class="dfoot"><div class="meta" id="fMeta"></div>
 <button class="btn danger" id="fDel" type="button">Delete</button>
-<label class="btn" id="fUp" title="Add many tasks at once from a CSV file (for example the Excel Task Tracker sheet saved as CSV)">⬆ Upload CSV<input type="file" id="fCsv" accept=".csv,text/csv" hidden></label>
+<label class="btn" id="fUp" title="Add many tasks at once from an Excel (.xlsx) or CSV file, for example the Excel Task Tracker workbook">⬆ Upload CSV/Excel<input type="file" id="fCsv" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label>
 <button class="btn" id="fCancel" type="button">Cancel</button>
 <button class="btn" id="fSaveNew" type="button">Save &amp; New</button>
 <button class="btn pri" id="fSave" type="button">Save <span class="kbd" style="color:#cfd8e6;border-color:#6d7fa3">Ctrl+Enter</span></button></div>

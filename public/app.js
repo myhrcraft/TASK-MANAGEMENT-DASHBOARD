@@ -252,30 +252,73 @@ function dateOrder(vals){let dmy=0,mdy=0;
   try{const p=new Intl.DateTimeFormat().formatToParts(new Date(2026,0,15));return p.findIndex(x=>x.type==="month")<p.findIndex(x=>x.type==="day")?"mdy":"dmy"}catch(e){return"dmy"}}
 // CSV text → tasks, or null when no heading row is found. Title rows above the headings are skipped.
 function csvTasks(s){s=s.replace(/^﻿/,"");
-  for(const d of [",",";","\t"]){
-    const rows=parseCSV(s,d).filter(r=>r.some(x=>x.trim()!==""));
-    const hi=rows.slice(0,15).findIndex(r=>r.some(x=>CSV_COLS.task.some(n=>hnorm(n)===hnorm(x))));if(hi<0)continue;
-    const h=rows[hi].map(hnorm),ix={};for(const k in CSV_COLS)ix[k]=h.findIndex(x=>CSV_COLS[k].some(n=>hnorm(n)===x));
-    const body=rows.slice(hi+1),g=(r,k)=>ix[k]>=0?(r[ix[k]]||"").trim().replace(/^'(?=[=+\-@])/,""):"";
-    const order=dateOrder(body.flatMap(r=>[g(r,"ad"),g(r,"due"),g(r,"cd")]));
-    return cleanTasks(body.map(r=>{let p=g(r,"pct").replace("%","");p=p===""?0:+p;if(p>0&&p<=1&&g(r,"pct").indexOf("%")<0)p=p*100;
-      const prRaw=g(r,"pr").toLowerCase()==="critical"?"urgent":g(r,"pr").toLowerCase();const pr=PRIOS.find(x=>x.toLowerCase()===prRaw)||"";
-      return {task:g(r,"task"),ad:normDate(g(r,"ad"),order),by:g(r,"by"),fn:g(r,"fn"),due:normDate(g(r,"due"),order),cd:normDate(g(r,"cd"),order),a1:g(r,"a1"),a2:g(r,"a2"),a3:g(r,"a3"),pr,pct:Math.round(Math.max(0,Math.min(100,p||0))),rem:g(r,"rem")}}))}
+  for(const d of [",",";","\t"]){const t=rowsTasks(parseCSV(s,d));if(t)return t}
   return null}
+// table rows (arrays of cell text) → tasks, or null when no heading row is found
+function rowsTasks(rows){rows=rows.filter(r=>r.some(x=>x.trim()!==""));
+  const hi=rows.slice(0,15).findIndex(r=>r.some(x=>CSV_COLS.task.some(n=>hnorm(n)===hnorm(x))));if(hi<0)return null;
+  const h=rows[hi].map(hnorm),ix={};for(const k in CSV_COLS)ix[k]=h.findIndex(x=>CSV_COLS[k].some(n=>hnorm(n)===x));
+  const body=rows.slice(hi+1),g=(r,k)=>ix[k]>=0?(r[ix[k]]||"").trim().replace(/^'(?=[=+\-@])/,""):"";
+  const order=dateOrder(body.flatMap(r=>[g(r,"ad"),g(r,"due"),g(r,"cd")]));
+  return cleanTasks(body.map(r=>{let p=g(r,"pct").replace("%","");p=p===""?0:+p;if(p>0&&p<=1&&g(r,"pct").indexOf("%")<0)p=p*100;
+    const prRaw=g(r,"pr").toLowerCase()==="critical"?"urgent":g(r,"pr").toLowerCase();const pr=PRIOS.find(x=>x.toLowerCase()===prRaw)||"";
+    return {task:g(r,"task"),ad:normDate(g(r,"ad"),order),by:g(r,"by"),fn:g(r,"fn"),due:normDate(g(r,"due"),order),cd:normDate(g(r,"cd"),order),a1:g(r,"a1"),a2:g(r,"a2"),a3:g(r,"a3"),pr,pct:Math.round(Math.max(0,Math.min(100,p||0))),rem:g(r,"rem")}}))}
+
+// ---------- Excel .xlsx reading (no library: an .xlsx is a zip of XML files) ----------
+// zip bytes → function(name) giving that entry's text, or null when it is missing
+function unzip(buf){const v=new DataView(buf),u8=new Uint8Array(buf),files={},td=new TextDecoder();
+  let e=buf.byteLength-22;while(e>=0&&v.getUint32(e,true)!==0x06054b50)e--;if(e<0)throw new Error("not a zip file");
+  let p=v.getUint32(e+16,true);const n=v.getUint16(e+10,true);
+  for(let k=0;k<n&&v.getUint32(p,true)===0x02014b50;k++){const nl=v.getUint16(p+28,true);
+    files[td.decode(u8.subarray(p+46,p+46+nl))]={method:v.getUint16(p+10,true),size:v.getUint32(p+20,true),off:v.getUint32(p+42,true)};
+    p+=46+nl+v.getUint16(p+30,true)+v.getUint16(p+32,true)}
+  return async name=>{const f=files[name];if(!f)return null;
+    const s=f.off+30+v.getUint16(f.off+26,true)+v.getUint16(f.off+28,true),data=u8.subarray(s,s+f.size);
+    if(f.method===0)return td.decode(data);if(f.method!==8)throw new Error("unsupported zip compression");
+    return new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).text()}}
+const xmlDoc=s=>new DOMParser().parseFromString(s,"application/xml");
+const xEls=(n,tag)=>[...n.getElementsByTagNameNS("*",tag)];
+const colNum=ref=>{let c=0;for(const ch of ref.replace(/\d+$/,""))c=c*26+ch.charCodeAt(0)-64;return c-1};
+// .xlsx bytes → [{name, rows}] for every worksheet, rows being arrays of cell text
+async function xlsxSheets(buf){const get=unzip(buf);
+  const ss=await get("xl/sharedStrings.xml"),strs=ss?xEls(xmlDoc(ss),"si").map(si=>xEls(si,"t").filter(t=>t.parentNode.localName!=="rPh").map(t=>t.textContent).join("")):[];
+  const rels={};xEls(xmlDoc(await get("xl/_rels/workbook.xml.rels")||"<r/>"),"Relationship").forEach(r=>rels[r.getAttribute("Id")]=r.getAttribute("Target"));
+  const out=[];
+  for(const sh of xEls(xmlDoc(await get("xl/workbook.xml")||"<r/>"),"sheet")){
+    const rid=[...sh.attributes].find(a=>a.localName==="id"&&a.prefix)?.value,tg=rels[rid];if(!tg)continue;
+    const x=await get(tg.startsWith("/")?tg.slice(1):"xl/"+tg.replace(/^\.\//,""));if(!x)continue;
+    const rows=xEls(xmlDoc(x),"row").map(row=>{const r=[];let next=0;
+      for(const c of xEls(row,"c")){const ref=c.getAttribute("r"),i=ref?colNum(ref):next;next=i+1;
+        const t=c.getAttribute("t"),vEl=xEls(c,"v")[0],val=vEl?vEl.textContent:"";
+        r[i]=t==="s"?(strs[+val]??""):t==="inlineStr"?xEls(c,"t").map(e=>e.textContent).join(""):t==="b"?(val==="1"?"TRUE":"FALSE"):t==="e"?"":val}
+      return Array.from(r,x=>x??"")});
+    out.push({name:sh.getAttribute("name")||"",rows})}
+  return out}
+// the tasks of the first sheet that has tracker headings (a sheet named like "Task Tracker" is tried first)
+async function xlsxTasks(buf){const sheets=await xlsxSheets(buf);
+  sheets.sort((a,b)=>(/task|tracker/i.test(b.name)?1:0)-(/task|tracker/i.test(a.name)?1:0));
+  let found=null;for(const s of sheets){const t=rowsTasks(s.rows);if(t&&t.length)return t;if(t)found=t}
+  return found}
+
+// CSV or Excel file → tasks; tells the person what went wrong when it cannot read the file
+function readCsvFile(e,then){const f=e.target.files[0];e.target.value="";if(!f)return;
+  f.arrayBuffer().then(async buf=>{const b=new Uint8Array(buf,0,Math.min(4,buf.byteLength));
+    if(b[0]===0xD0&&b[1]===0xCF){toast("This is an old .xls file. In Excel use File › Save As › Excel Workbook (.xlsx) or CSV, then upload that.");return}
+    const isZip=b[0]===0x50&&b[1]===0x4B;let tasks;
+    try{tasks=isZip?await xlsxTasks(buf):csvTasks(new TextDecoder().decode(buf))}
+    catch(err){console.error(err);toast(isZip?"Could not read this Excel file. If it has a password, remove it, or save the sheet as CSV.":"Could not read this file.");return}
+    if(!tasks){toast(isZip?"No sheet in this Excel file has tracker headings (e.g. 'Task' or 'Task Name').":"This CSV has no tracker headings (e.g. 'Task' or 'Task Name').");return}
+    if(!tasks.length){toast("No tasks found in this file.");return}
+    then(tasks,newNames(tasks),f.name)})}
 // names in the tasks that the Lists don't have yet, kept exactly as spelled in the file
 function newNames(tasks){const out={members:[],assigners:[],functions:[]};
   const add=(k,v)=>{if(!v)return;const l=v.toLowerCase();if(S[k].some(x=>x.toLowerCase()===l)||out[k].some(x=>x.toLowerCase()===l))return;out[k].push(v)};
   tasks.forEach(t=>{add("members",t.a1);add("members",t.a2);add("members",t.a3);add("assigners",t.by);add("functions",t.fn)});return out}
 const namesNote=nn=>{const n=nn.members.length+nn.assigners.length+nn.functions.length;return n?` ${n} new name${n===1?"":"s"} from the file will be added to the Lists.`:""};
-function readCsvFile(e,then){const f=e.target.files[0];e.target.value="";if(!f)return;
-  f.text().then(s=>{const tasks=csvTasks(s);
-    if(!tasks){toast("This CSV has no tracker headings (e.g. 'Task' or 'Task Name').");return}
-    if(!tasks.length){toast("No tasks found in this file.");return}
-    then(tasks,newNames(tasks),f.name)})}
 impCsv.onchange=e=>readCsvFile(e,(tasks,nn)=>{const p={tasks};for(const k in nn)if(nn[k].length)p[k]=[...S[k],...nn[k]];
-  askConfirm("Import CSV?",`All ${S.tasks.length} current tasks will be replaced for everyone by ${tasks.length} tasks from this file.${namesNote(nn)}`,"Replace",()=>replaceAll(p,`Imported ${tasks.length} tasks (replaced existing).`))});
-// Upload CSV (New Task form): adds the file's tasks to the ones already there
-fCsv.onchange=e=>readCsvFile(e,(tasks,nn,name)=>askConfirm("Upload tasks from CSV?",`${tasks.length} task${tasks.length===1?"":"s"} from “${name}” will be added for everyone. Existing tasks stay as they are.${namesNote(nn)}`,"Upload",()=>uploadTasks(tasks,nn)));
+  askConfirm("Import file?",`All ${S.tasks.length} current tasks will be replaced for everyone by ${tasks.length} tasks from this file.${namesNote(nn)}`,"Replace",()=>replaceAll(p,`Imported ${tasks.length} tasks (replaced existing).`))});
+// Upload CSV / Excel (New Task form): adds the file's tasks to the ones already there
+fCsv.onchange=e=>readCsvFile(e,(tasks,nn,name)=>askConfirm("Upload tasks from file?",`${tasks.length} task${tasks.length===1?"":"s"} from “${name}” will be added for everyone. Existing tasks stay as they are.${namesNote(nn)}`,"Upload",()=>uploadTasks(tasks,nn)));
 async function uploadTasks(tasks,nn){
   const rows=Object.entries(nn).flatMap(([kind,a])=>a.map(name=>({kind,name})));let listFail=false;
   const r=await run(async()=>{const a=await dbInsertMany(tasks);let l=[];try{l=await dbListAddMany(rows)}catch(e){console.error(e);listFail=true}return {a,l}});
